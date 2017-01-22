@@ -1,0 +1,253 @@
+---
+title: "Analysing wine based on its chemical composition"
+author: "Laura Heely, Thouk Koukoulios, Jan Mier, Walker Willard"
+output:
+  html_document:
+    css: AnalyticsStyles/default.css
+    theme: paper
+    toc: yes
+    toc_float:
+      collapsed: no
+      smooth_scroll: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#Setup document constants
+
+# Setup key filenames and directory paths
+local_directory = "."
+datafile_name = "winequality-white"
+
+#Load external libraries
+source(paste(local_directory,"/AnalyticsLibraries/library.R", sep="/"))
+if (require(randomForest)==FALSE){install.packages("randomForest")}; library(randomForest)
+if (require(caret)==FALSE){install.packages("caret")}; library(caret)
+if (require(e1071)==FALSE){install.packages("e1071")}; library(e1071)
+
+#Package options
+ggthemr('fresh')  # ggplot theme
+
+# The maximum number of observations to show in the report and slides 
+max_data_report = 10
+
+# Percentages of data used for estimation
+estimation_data_percent = 80
+validation_data_percent = 10
+test_data_percent = 100-estimation_data_percent-validation_data_percent
+
+# Let's finally read in the data file
+ProjectData <- read.csv(paste(paste(local_directory, "data", sep="/"), paste(datafile_name,"csv", sep="."), sep = "/"), sep=";") # this contains only the matrix ProjectData
+ProjectData = data.frame(ProjectData)
+
+```
+
+## The "Business Decision"
+
+We want to know if we can predict the quality of wine based on its chemical attributes. The goal of the project is to identify key attributes or a more complex decision making process that will help wine amateurs identify good quality wine.
+
+## The Data
+
+For the purpose of this project we identified a multivariate data set from the UCI Machine Learning Repository, which is is a collection of databases, domain theories, and data generators that are used by the machine learning community for the empirical analysis of machine learning algorithms (<i> P. Cortez, A. Cerdeira, F. Almeida, T. Matos and J. Reis. Modeling wine preferences by data mining from physicochemical properties. In Decision Support Systems, Elsevier, 47(4):547-553, 2009.</i>). The data set that we will be using is related to white vinho verde wine samples, from the north of Portugal.
+
+We will be using the full data set that has the following 12 attributes:
+
+Attribute # | Description
+:------|:-----------
+1  | Fixed acidity
+2  | Volatile acidity
+3  | Citric acid
+4  | Residual sugar
+5  | Chlorides
+6  | Free sulfur dioxide
+7  | Total sulfur dioxide
+8  | Density
+9  | pH
+10 | Sulphates
+11 | Alcohol
+12 | Quality - the dependant variable (score between 0 and 10)
+
+Let's have a look at the data for a few wines to get a sense of it. This is how the first `r min(max_data_report, nrow(ProjectData))` out of the total of `r nrow(ProjectData)` wines look:
+
+```{r echo=FALSE, message=FALSE, prompt=FALSE, results='asis'}
+knitr::kable({
+  df <- t(head(round(ProjectData[,],2), max_data_report))
+  colnames(df) <- sprintf("%02d", 1:ncol(df))
+  df
+})
+```
+
+And now let's zoom out really far and have a look at histograms of all the attributes:
+
+```{r echo=FALSE, message=FALSE, prompt=FALSE} 
+par(mfrow = c(3,4))
+
+barplot(table(ProjectData[,"fixed.acidity"]), main = "Fixed acidity")
+barplot(table(ProjectData[,"volatile.acidity"]), main = "Volatile acidicity")
+barplot(table(ProjectData[,"citric.acid"]), main ="Citric acid")
+barplot(table(ProjectData[,"residual.sugar"]), main ="Residual sugar")
+barplot(table(ProjectData[,"chlorides"]), main = "Chlorides")
+barplot(table(ProjectData[,"free.sulfur.dioxide"]), main = "Free sulfur dioxide")
+barplot(table(ProjectData[,"total.sulfur.dioxide"]), main = "Total sulfur dioxide")
+barplot(table(ProjectData[,"density"]), main = "Density")
+barplot(table(ProjectData[,"pH"]), main = "pH")
+barplot(table(ProjectData[,"sulphates"]), main = "Sulphates")
+barplot(table(ProjectData[,"alcohol"]), main = "Alcohol")
+barplot(table(ProjectData[,"quality"]), main = "Quality")
+```
+
+
+## The analysis process
+
+We chose to design our analysis process based on the 6-step process provided in class.
+
+### Classification in about 6 steps
+
+1. Create an estimation sample and two validation samples by splitting the data into three groups. Steps 2-5 below will then be performed only on the estimation and the first validation data.
+2.  Set up the dependent variable (as a categorical 0-1 variable; multi-class classification is also feasible, and similar, but we do not explore it in this note).
+3. Make a preliminary assessment of the relative importance of the explanatory variables using visualization tools and simple descriptive statistics. 
+4.  Estimate the classification model using the estimation data, and interpret the results.
+5. Assess the accuracy of classification in the first validation sample, possibly repeating steps 2-5 a few times in different ways to increase performance.
+6. Finally, assess the accuracy of classification in the second validation sample.  You should eventually use/report all relevant performance measures/plots on this second validation sample only.
+
+So let's follow these steps.
+
+### Step 1: Split the data
+
+Before performing anything else we must split the dataset into 3 sets: the estimation, validation and test set. Doing this early ensures that we do not contaminate the test data.
+
+The estimation data and the first validation data are used during steps 2-5 (with a few iterations of these steps), while the second validation data is only used once at the very end before making final business decisions based on the analysis.
+
+We have chosen to do the split ca. 80% estimation, 10% validation, and 10% test data as we had `r nrow(ProjectData)` samples to choose from.
+
+```{r echo=FALSE, message=TRUE}
+estimation_data_ids = sample.int(nrow(ProjectData),floor(estimation_data_percent*nrow(ProjectData)/100))
+non_estimation_data = setdiff(1:nrow(ProjectData),estimation_data_ids)
+validation_data_ids = non_estimation_data[sample.int(length(non_estimation_data), floor(validation_data_percent/(validation_data_percent+test_data_percent)*length(non_estimation_data)))]
+
+test_data_ids = setdiff(1:nrow(ProjectData), union(estimation_data_ids,validation_data_ids))
+
+EstimationData = ProjectData[estimation_data_ids,]
+ValidationData = ProjectData[validation_data_ids,]
+TestData = ProjectData[test_data_ids,]
+
+```
+
+
+### Step 2: Choose and setup the dependent variable
+We will be using quality as the multi-category dependent variable. Let's have a look again at the data to see if there are some categories that we want to create other than the 1-10 scale.
+
+```{r echo=FALSE, message=FALSE, prompt=FALSE}
+barplot(table(ProjectData[,"quality"]), main = "Distribution of wine quality", xlab = "Quality", ylab = "Number of wines")
+```
+
+It is pretty clear that 6 is the deciding value for the wine quality - effectively splitting the dataset between appauling, normal and good wine. Therefore, let's setup 3 categories to reflect this:
+
+```{r echo=FALSE, message=FALSE, prompt=FALSE}
+EstimationData <- cbind(EstimationData, ifelse(EstimationData[,"quality"] < 6, 'bad', 
+                                         ifelse(EstimationData[,"quality"] == 6, 'normal', 'good')))
+ValidationData <- cbind(ValidationData, ifelse(ValidationData[,"quality"] < 6, 'bad', 
+                                         ifelse(ValidationData[,"quality"] == 6, 'normal', 'good')))
+TestData <- cbind(TestData, ifelse(TestData[,"quality"] < 6, 'bad', 
+                                         ifelse(TestData[,"quality"] == 6, 'normal', 'good')))
+
+colnames(EstimationData)[13] <- "taste"
+colnames(ValidationData)[13] <- "taste"
+colnames(TestData)[13] <- "taste"
+```
+
+
+Classification | Quality | # Occurences in estimation data | # Occurences in validation data | # Occurences in test data
+:------|:-----------|:----------|:-----------|:----------
+Bad  | 5 or less | `r sum(EstimationData[,"taste"] == 'bad')` (`r round(sum(EstimationData[,"taste"] == 'bad')/nrow(EstimationData),2)*100`%) | `r sum(ValidationData[,"taste"] == 'bad')` (`r round(sum(ValidationData[,"taste"] == 'bad')/nrow(ValidationData),2)*100`%) | `r sum(TestData[,"taste"] == 'bad')` (`r round(sum(TestData[,"taste"] == 'bad')/nrow(TestData),2)*100`%)
+Normal  | 6 | `r sum(EstimationData[,"taste"] == 'normal')` (`r round(sum(EstimationData[,"taste"] == 'normal')/nrow(EstimationData),2)*100`%) | `r sum(ValidationData[,"taste"] == 'normal')` (`r round(sum(ValidationData[,"taste"] == 'normal')/nrow(ValidationData),2)*100`%) | `r sum(TestData[,"taste"] == 'normal')` (`r round(sum(TestData[,"taste"] == 'normal')/nrow(TestData),2)*100`%)
+Good  | 7 or greater | `r sum(EstimationData[,"taste"] == 'good')` (`r round(sum(EstimationData[,"taste"] == 'good')/nrow(EstimationData),2)*100`%) | `r sum(ValidationData[,"taste"] == 'good')` (`r round(sum(ValidationData[,"taste"] == 'good')/nrow(ValidationData),2)*100`%) | `r sum(TestData[,"taste"] == 'good')` (`r round(sum(TestData[,"taste"] == 'good')/nrow(TestData),2)*100`%)
+
+
+### Step 3: Simple Analysis
+
+Lets start the analysis with checking some simple statistical information about the data subsets.
+
+**Bad wine**
+
+```{r}
+knitr::kable(round(my_summary(EstimationData[EstimationData[,"taste"] == 'bad',1:12]),2))
+```
+
+**Normal wine**
+
+```{r}
+knitr::kable(round(my_summary(EstimationData[EstimationData[,"taste"] == 'normal',1:12]),2))
+```
+
+
+**Good wine**
+
+```{r}
+knitr::kable(round(my_summary(EstimationData[EstimationData[,"taste"] == 'good',1:12]),2))
+```
+
+
+Now let's do some simple box plots based on the above data as they may help usassess the discriminatory power of the independent variables.
+
+**Bad wine**
+
+```{r echo = FALSE, fig.height=4.5}
+DVvalues = unique(EstimationData[,13])
+x0 = EstimationData[which(EstimationData[,13]==DVvalues[1]),1:11]
+x1 = EstimationData[which(EstimationData[,13]==DVvalues[2]),1:11]
+x2 = EstimationData[which(EstimationData[,13]==DVvalues[3]),1:11]
+colnames(x0) <- colnames(EstimationData[,1:11])
+colnames(x1) <- colnames(EstimationData[,1:11])
+colnames(x2) <- colnames(EstimationData[,1:11])
+
+swatch.default <- as.character(swatch())
+set_swatch(c(swatch.default[1], colorRampPalette(RColorBrewer::brewer.pal(12, "Paired"))(ncol(x0))))
+ggplot(melt(cbind.data.frame(n=1:nrow(x0), x0), id="n"), aes(x=n, y=value, colour=variable)) + geom_boxplot(fill="#FFFFFF", size=0.66, position=position_dodge(1.1*nrow(x0)))
+set_swatch(swatch.default)
+```
+
+
+**Normal wine**
+
+```{r echo = FALSE, fig.height=4.5}
+swatch.default <- as.character(swatch())
+set_swatch(c(swatch.default[1], colorRampPalette(RColorBrewer::brewer.pal(12, "Paired"))(ncol(x1))))
+ggplot(melt(cbind.data.frame(n=1:nrow(x1), x1), id="n"), aes(x=n, y=value, colour=variable)) + geom_boxplot(fill="#FFFFFF", size=0.66, position=position_dodge(1.1*nrow(x1)))
+set_swatch(swatch.default)
+```
+
+
+*Good wine**
+
+```{r echo = FALSE, fig.height=4.5}
+swatch.default <- as.character(swatch())
+set_swatch(c(swatch.default[1], colorRampPalette(RColorBrewer::brewer.pal(12, "Paired"))(ncol(x2))))
+ggplot(melt(cbind.data.frame(n=1:nrow(x2), x2), id="n"), aes(x=n, y=value, colour=variable)) + geom_boxplot(fill="#FFFFFF", size=0.66, position=position_dodge(1.1*nrow(x2)))
+set_swatch(swatch.default)
+```
+
+
+### Step 4: Classification and Interpretation
+
+It is time now to run a the classification algorithm on the data set. We have chosen to use the random forest tree algorithm for this.
+
+```{r echo= FALSE}
+model <- randomForest(taste ~ . - quality, data = EstimationData, ntree=300, mtry=3)
+model$confusion
+plot(model)
+```
+
+```{r echo=FALSE}
+
+# varImpPlot(model, sort = T, main = "Variable Importance", n.var = 11)
+pred <- predict(model, newdata = ValidationData)
+confusionMatrix(data = pred, reference = ValidationData[,"taste"])
+# table(pred, ValidationData[,"taste"])
+
+```
+
+
+
+
