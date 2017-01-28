@@ -267,7 +267,7 @@ my.mtry = 3
 my.ntree = 200
 
 model <- randomForest(taste ~ . - quality, data = EstimationData, ntree=my.ntree, mtry=my.mtry, sampsize=my.sampsize, cutoff = my.cutoff, classwt = my.classwt, importance = TRUE)
-# model <- randomForest(taste ~ . - quality, data = EstimationData)
+base.model <- randomForest(taste ~ . - quality, data = EstimationData)
 ```
 
 There are a few basic parameters that can be tuned in order to improve the performance of our model. In particular, since random forests are particulary sensitive to imbalanced datasets (like ours) we will be playing around with **classwt**, **sampsize**, **cutoff**, **mtry**, **ntree**. We will be looking at measures of classification performance to tune these parameters in **step 5**.
@@ -356,9 +356,11 @@ Let's finally test the accuracy of the model agains the test dataset that we cre
 
 ```{r echo=FALSE}
 pred <- randomForest:::predict.randomForest(model, TestData)
+base.pred <- randomForest:::predict.randomForest(base.model, TestData)
 
-confusionMatrix(reference = TestData[, "taste"], data = pred)
-
+confusion.matrix <- confusionMatrix(reference = TestData[, "taste"], data = pred)
+base.confusion.matrix <- confusionMatrix(reference = TestData[, "taste"], data = base.pred)
+confusion.matrix
 ```
 
 #### ROC curve (for faulty or not faulty) 
@@ -385,11 +387,13 @@ plot(RP.perf)
 
 ### Conclusions
 
-The model is strongly **biased towards** the **faulty** classification, which is what it was desinged to do. The model is pretty good at predicting the **good** wines. Although the model might seem to be terrible at dealing with the **average** wines (usually splitting them 50% average, 30% faulty, 20% good) we do not care about upward misclassifications. Furthermore, with such an abundance of average wines losing out on 30% of them is not so terrible.
+The model is strongly **biased towards** the **faulty classification**, which is what it was desinged to do. The model is pretty good at predicting the good wines. Although the model might seem to be terrible at dealing with the average wines (usually splitting them 45% average, 35% faulty, 20% good) we do not care about upward misclassifications. Furthermore, with such an abundance of average wines losing out on 35% of them is not so terrible.
 
 The accuracy of the model will vary depending on the setup of the Estimation and Test data - sometimes it's good, sometimes it's not.
 
-Finally, by tweaking the input parameters of the random forest algorithm, we were able to **reduce false negatives** on **faulty** wines from about to about **80-90%** down to **10-20%**.
+Finally, by tweaking the input parameters of the random forest algorithm, we were able to reduce false negatives on faulty wines from about 80-90% down to about 10-20%. 
+
+Or more intuitively, if you **randomly picked 1000** vino verde white wines you could expect to get **`r round(sum(TestData[,"taste"]=="faulty")/nrow(TestData)*1000,0)` faulty** wines, if you pre-selected based on a **basic random forest model** you could expect to get **`r round(sum(base.confusion.matrix$table[c(1,3),2])/sum(base.confusion.matrix$table)*1000,0)` faulty** wines, and if you pre-selected based on the **tuned random forest** model you could expect to get **`r round(sum(confusion.matrix$table[c(1,3),2])/sum(confusion.matrix$table)*1000,0)` faulty** wines.
 
 #### And just for fun
 
