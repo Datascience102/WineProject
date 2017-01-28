@@ -9,10 +9,18 @@ output:
     toc_float:
       collapsed: no
       smooth_scroll: yes
+  pdf_document:
+    includes:
+      in_header: ../../AnalyticsStyles/default.sty
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+
+#TODO: randomForest on quality not taste
+#TODO: supervised random forest where upward mistakes are free and downward mistakes are proportional to the 2nd power of the distance between the two scores  
+
 
 #Setup document constants
 
@@ -35,7 +43,7 @@ max_data_report = 10
 # Percentages of data used for estimation
 estimation_data_percent = 80
 validation_data_percent = 10
-test_data_percent = 100-estimation_data_percent-validation_data_percent
+test_data_percent = 100 - estimation_data_percent - validation_data_percent
 
 # Let's finally read in the data file
 ProjectData <- read.csv(paste(paste(local_directory, "data", sep="/"), paste(datafile_name,"csv", sep="."), sep = "/"), sep=";") # this contains only the matrix ProjectData
@@ -43,13 +51,17 @@ ProjectData = data.frame(ProjectData)
 
 ```
 
+
 ## The "Business Decision"
 
-We want to know if we can predict the quality of wine based on its chemical attributes. The goal of the project is to identify key attributes or a more complex decision making process that will help wine amateurs identify good quality wine.
+<img src="figure/map.jpg" width="200px" align="left" hspace="20"/>
+
+Can we help people screen their white vino verde and save them from drinking some aweful wine? We want to know if we can identfiy aweful wine based on its chemical attributes. As a bonus we will check if we can more generally predict the quality of the wine based on its chemical attributes.
+<br clear="left"/>
 
 ## The Data
 
-For the purpose of this project we identified a multivariate data set from the UCI Machine Learning Repository, which is is a collection of databases, domain theories, and data generators that are used by the machine learning community for the empirical analysis of machine learning algorithms (<i> P. Cortez, A. Cerdeira, F. Almeida, T. Matos and J. Reis. Modeling wine preferences by data mining from physicochemical properties. In Decision Support Systems, Elsevier, 47(4):547-553, 2009.</i>). The data set that we will be using is related to white vinho verde wine samples, from the north of Portugal.
+For the purpose of this project we identified a multivariate data set from the UCI Machine Learning Repository, which is is a collection of databases, domain theories, and data generators that are used by the machine learning community for the empirical analysis of machine learning algorithms (<i> P. Cortez, A. Cerdeira, F. Almeida, T. Matos and J. Reis. Modeling wine preferences by data mining from physicochemical properties. In Decision Support Systems, Elsevier, 47(4):547-553, 2009.</i>). The data set that we will be using is related to white vino verde wine samples.
 
 We will be using the full data set that has the following 12 attributes:
 
@@ -66,7 +78,7 @@ Attribute # | Description
 9  | pH
 10 | Sulphates
 11 | Alcohol
-12 | Quality - the dependant variable (score between 0 and 10)
+12 | Quality (score between 0 and 10)
 
 Let's have a look at the data for a few wines to get a sense of it. This is how the first `r min(max_data_report, nrow(ProjectData))` out of the total of `r nrow(ProjectData)` wines look:
 
@@ -78,7 +90,7 @@ knitr::kable({
 })
 ```
 
-And now let's zoom out really far and have a look at histograms of all the attributes:
+All the data is numeric - that's fantastic! So, just for fun, let's zoom out really far and have a look at histograms of all the attributes:
 
 ```{r echo=FALSE, message=FALSE, prompt=FALSE} 
 par(mfrow = c(3,4))
@@ -100,12 +112,13 @@ barplot(table(ProjectData[,"quality"]), main = "Quality")
 
 ## The analysis process
 
-We chose to design our analysis process based on the 6-step process provided in class.
+We chose to design our analysis process based on the 6-step process provided in class. However, instead of using **logistic regression** and **classification and regression trees (CART)** we decided that we would use an implementation of Breiman and Cutler's **Random Forests for Classification and Regression**. As a result we did not have to restrict ourselves to a binary dependent variable and changed **step 2**.
+ 
 
 ### Classification in about 6 steps
 
 1. Create an estimation sample and two validation samples by splitting the data into three groups. Steps 2-5 below will then be performed only on the estimation and the first validation data.
-2.  Set up the dependent variable (as a categorical 0-1 variable; multi-class classification is also feasible, and similar, but we do not explore it in this note).
+2.  Set up the dependent variable.
 3. Make a preliminary assessment of the relative importance of the explanatory variables using visualization tools and simple descriptive statistics. 
 4.  Estimate the classification model using the estimation data, and interpret the results.
 5. Assess the accuracy of classification in the first validation sample, possibly repeating steps 2-5 a few times in different ways to increase performance.
@@ -115,7 +128,7 @@ So let's follow these steps.
 
 ### Step 1: Split the data
 
-Before performing anything else we must split the dataset into 3 sets: the estimation, validation and test set. Doing this early ensures that we do not contaminate the test data.
+Before performing anything else we must split the dataset into 3 sets: the estimation, validation and test set.
 
 The estimation data and the first validation data are used during steps 2-5 (with a few iterations of these steps), while the second validation data is only used once at the very end before making final business decisions based on the analysis.
 
@@ -131,27 +144,41 @@ test_data_ids = setdiff(1:nrow(ProjectData), union(estimation_data_ids,validatio
 EstimationData = ProjectData[estimation_data_ids,]
 ValidationData = ProjectData[validation_data_ids,]
 TestData = ProjectData[test_data_ids,]
-
 ```
 
 
 ### Step 2: Choose and setup the dependent variable
-We will be using quality as the multi-category dependent variable. Let's have a look again at the data to see if there are some categories that we want to create other than the 1-10 scale.
+
+The main objective of our excercise is to help identify aweful wine based on its chemical attributes. These faulty wines have been defined in our dataset based on their **quality**:
 
 ```{r echo=FALSE, message=FALSE, prompt=FALSE}
 barplot(table(ProjectData[,"quality"]), main = "Distribution of wine quality", xlab = "Quality", ylab = "Number of wines")
 ```
 
-It is pretty clear that 6 is the deciding value for the wine quality - effectively splitting the dataset between appauling, normal and good wine. Therefore, let's setup 3 categories to reflect this:
+Wines with a quality below 5 are **faulty** - we **do not** want to **drink** these - in fact we do not want to touch them with a ten foot pole.
+
+Interestingly there is a clear distinction between the number of wines classified with quality 5 & 6 and the number of wines classified as over 6. Seeing this we decided to  classify wines between **5 and 6** as **average** wines and those with a score **above 6** as **good** wines.
+
+Before we move on, let's have a quick look at the proportions that of each type of wine in our 3 datasets that we built in step 1. It would be nice if the proportions were similar in all three sets.
 
 ```{r echo=FALSE, message=FALSE, prompt=FALSE}
-EstimationData <- cbind(EstimationData, ifelse(EstimationData[,"quality"] < 6, 'bad', 
-                                         ifelse(EstimationData[,"quality"] == 6, 'normal', 'good')))
-ValidationData <- cbind(ValidationData, ifelse(ValidationData[,"quality"] < 6, 'bad', 
-                                         ifelse(ValidationData[,"quality"] == 6, 'normal', 'good')))
-TestData <- cbind(TestData, ifelse(TestData[,"quality"] < 6, 'bad', 
-                                         ifelse(TestData[,"quality"] == 6, 'normal', 'good')))
+# in each of the datasets classify faulty as less than 5 etc.
+EstimationData <- cbind(EstimationData, ifelse(EstimationData[,"quality"] < 5, 'faulty',
+                                         ifelse(EstimationData[,"quality"] == 6 | EstimationData[,"quality"] == 5, 'average', 'good')))
+ValidationData <- cbind(ValidationData, ifelse(ValidationData[,"quality"] < 5, 'faulty',
+                                         ifelse(ValidationData[,"quality"] == 6 | ValidationData[,"quality"] == 5, 'average', 'good')))
+TestData <- cbind(TestData, ifelse(TestData[,"quality"] < 5, 'faulty',
+                                         ifelse(TestData[,"quality"] == 6 | TestData[,"quality"] == 5, 'average', 'good')))
 
+# Classify bad as less than 6 (this has an under 30% error rate on faulty wine)
+# EstimationData <- cbind(EstimationData, ifelse(EstimationData[,"quality"] < 6, 'poor',
+#                                          ifelse(EstimationData[,"quality"] == 6, 'average', 'good')))
+# ValidationData <- cbind(ValidationData, ifelse(ValidationData[,"quality"] < 6, 'poor',
+#                                          ifelse(ValidationData[,"quality"] == 6, 'average', 'good')))
+# TestData <- cbind(TestData, ifelse(TestData[,"quality"] < 6, 'poor',
+#                                          ifelse(TestData[,"quality"] == 6, 'average', 'good')))
+
+#let's call this new classification "taste" and assign that name to the column in the datasets
 colnames(EstimationData)[13] <- "taste"
 colnames(ValidationData)[13] <- "taste"
 colnames(TestData)[13] <- "taste"
@@ -160,8 +187,8 @@ colnames(TestData)[13] <- "taste"
 
 Classification | Quality | # Occurences in estimation data | # Occurences in validation data | # Occurences in test data
 :------|:-----------|:----------|:-----------|:----------
-Bad  | 5 or less | `r sum(EstimationData[,"taste"] == 'bad')` (`r round(sum(EstimationData[,"taste"] == 'bad')/nrow(EstimationData),2)*100`%) | `r sum(ValidationData[,"taste"] == 'bad')` (`r round(sum(ValidationData[,"taste"] == 'bad')/nrow(ValidationData),2)*100`%) | `r sum(TestData[,"taste"] == 'bad')` (`r round(sum(TestData[,"taste"] == 'bad')/nrow(TestData),2)*100`%)
-Normal  | 6 | `r sum(EstimationData[,"taste"] == 'normal')` (`r round(sum(EstimationData[,"taste"] == 'normal')/nrow(EstimationData),2)*100`%) | `r sum(ValidationData[,"taste"] == 'normal')` (`r round(sum(ValidationData[,"taste"] == 'normal')/nrow(ValidationData),2)*100`%) | `r sum(TestData[,"taste"] == 'normal')` (`r round(sum(TestData[,"taste"] == 'normal')/nrow(TestData),2)*100`%)
+Faulty  | 4 or less | `r sum(EstimationData[,"taste"] == 'faulty')` (`r round(sum(EstimationData[,"taste"] == 'faulty')/nrow(EstimationData),2)*100`%) | `r sum(ValidationData[,"taste"] == 'faulty')` (`r round(sum(ValidationData[,"taste"] == 'faulty')/nrow(ValidationData),2)*100`%) | `r sum(TestData[,"taste"] == 'faulty')` (`r round(sum(TestData[,"taste"] == 'faulty')/nrow(TestData),2)*100`%)
+Average  | 5 & 6 | `r sum(EstimationData[,"taste"] == 'average')` (`r round(sum(EstimationData[,"taste"] == 'average')/nrow(EstimationData),2)*100`%) | `r sum(ValidationData[,"taste"] == 'average')` (`r round(sum(ValidationData[,"taste"] == 'average')/nrow(ValidationData),2)*100`%) | `r sum(TestData[,"taste"] == 'average')` (`r round(sum(TestData[,"taste"] == 'average')/nrow(TestData),2)*100`%)
 Good  | 7 or greater | `r sum(EstimationData[,"taste"] == 'good')` (`r round(sum(EstimationData[,"taste"] == 'good')/nrow(EstimationData),2)*100`%) | `r sum(ValidationData[,"taste"] == 'good')` (`r round(sum(ValidationData[,"taste"] == 'good')/nrow(ValidationData),2)*100`%) | `r sum(TestData[,"taste"] == 'good')` (`r round(sum(TestData[,"taste"] == 'good')/nrow(TestData),2)*100`%)
 
 
@@ -169,29 +196,28 @@ Good  | 7 or greater | `r sum(EstimationData[,"taste"] == 'good')` (`r round(sum
 
 Lets start the analysis with checking some simple statistical information about the data subsets.
 
-**Bad wine**
+####Faulty wine
 
-```{r}
-knitr::kable(round(my_summary(EstimationData[EstimationData[,"taste"] == 'bad',1:12]),2))
+```{r echo = FALSE}
+knitr::kable(round(my_summary(EstimationData[EstimationData[,"taste"] == 'faulty',1:12]),2))
 ```
 
-**Normal wine**
+####Normal wine
 
-```{r}
-knitr::kable(round(my_summary(EstimationData[EstimationData[,"taste"] == 'normal',1:12]),2))
+```{r echo = FALSE}
+knitr::kable(round(my_summary(EstimationData[EstimationData[,"taste"] == 'average',1:12]),2))
 ```
 
+####Good wine
 
-**Good wine**
-
-```{r}
+```{r echo = FALSE}
 knitr::kable(round(my_summary(EstimationData[EstimationData[,"taste"] == 'good',1:12]),2))
 ```
 
 
-Now let's do some simple box plots based on the above data as they may help usassess the discriminatory power of the independent variables.
+Now let's do some simple box plots based on the above data as they may help us assess the discriminatory power of the independent variables.
 
-**Bad wine**
+####Faulty wine
 
 ```{r echo = FALSE, fig.height=4.5}
 DVvalues = unique(EstimationData[,13])
@@ -209,7 +235,7 @@ set_swatch(swatch.default)
 ```
 
 
-**Normal wine**
+####Normal wine
 
 ```{r echo = FALSE, fig.height=4.5}
 swatch.default <- as.character(swatch())
@@ -219,7 +245,7 @@ set_swatch(swatch.default)
 ```
 
 
-*Good wine**
+####Good wine
 
 ```{r echo = FALSE, fig.height=4.5}
 swatch.default <- as.character(swatch())
@@ -231,23 +257,144 @@ set_swatch(swatch.default)
 
 ### Step 4: Classification and Interpretation
 
-It is time now to run a the classification algorithm on the data set. We have chosen to use the random forest tree algorithm for this.
+It is time now to run a classification algorithm on the data set. We have chosen to use the random forest tree algorithm for this.
 
-```{r echo= FALSE}
-model <- randomForest(taste ~ . - quality, data = EstimationData, ntree=300, mtry=3)
-model$confusion
-plot(model)
+```{r echo = FALSE}
+my.sampsize = c(sum(EstimationData[,"taste"]=="faulty"), sum(EstimationData[,"taste"]=="faulty"), sum(EstimationData[,"taste"]=="faulty")) #maximum unbiased sample size
+my.cutoff = c(0.35,0.2,0.45)
+my.classwt = c(1e-05,1,1)
+my.mtry = 3
+my.ntree = 200
+
+model <- randomForest(taste ~ . - quality, data = EstimationData, ntree=my.ntree, mtry=my.mtry, sampsize=my.sampsize, cutoff = my.cutoff, classwt = my.classwt, importance = TRUE)
+# model <- randomForest(taste ~ . - quality, data = EstimationData)
 ```
+
+There are a few basic parameters that can be tuned in order to improve the performance of our model. In particular, since random forests are particulary sensitive to imbalanced datasets (like ours) we will be playing around with **classwt**, **sampsize**, **cutoff**, **mtry**, **ntree**. We will be looking at measures of classification performance to tune these parameters in **step 5**.
+
+For the final version of the model we used the following parameters (for vectors the ordering is average, faulty, good) :
+
+Parameter | Value
+:---------|:-----------
+classwt  | `r my.classwt`
+sampsize  | `r my.sampsize`
+cutoff  | `r my.cutoff`
+mtry | `r my.mtry`
+ntree | `r my.ntree`
+
+### Step 5: Validation accuracy
+
+Ok, so let's look at some measures that will help us fine tune the model.
+
+
+#### Confusion matrix
+
+Let's start by looking at the results - how many did we get right, how many did we get wrong and what are the missclassification errors like?
+
+```{r echo = FALSE}
+
+confusionMatrix <- model$confusion
+rownames(confusionMatrix) <- c("Actual average", "Actual faulty", "Actual good")
+colnames(confusionMatrix) <- c("Predicted average", "Predicted faulty", "Predicted good", "Class error")
+
+knitr::kable(confusionMatrix, digits = 2) #predicted in columns, actual in rows
+```
+
+... or the same but from a percentage in class perspective (rows sum too 100%)
+
+```{r echo = FALSE}
+
+# confusionMatrix[,1:3] <- (confusionMatrix[,1:3] / sum(confusionMatrix[,1:3]))*100
+confusionMatrix[1,1:3] <- paste(round(confusionMatrix[1,1:3]/sum(as.numeric(confusionMatrix[1,1:3]))*100,2),"%", sep = "")
+confusionMatrix[2,1:3] <- paste(round(as.numeric(confusionMatrix[2,1:3])/sum(as.numeric(confusionMatrix[2,1:3]))*100,2),"%", sep = "")
+confusionMatrix[3,1:3] <- paste(round(as.numeric(confusionMatrix[3,1:3])/sum(as.numeric(confusionMatrix[3,1:3]))*100,2),"%", sep = "")
+confusionMatrix[,4] <- paste(round(as.numeric(confusionMatrix[,4])*100,2),"%", sep = "")
+
+knitr::kable(confusionMatrix[,1:3], digits = 2) #predicted in columns, actual in rows
+```
+
+
+#### Classification error rates vs the number of trees in the forest (ntree)
+
+```{r echo = FALSE}
+plot(model, main="Error rates for number of RandomForest trees")
+```
+
+The number of trees has been set to 200 as the error rate seems to rise again after that. 
+
+
+#### ROC curve (for faulty or not faulty)
+
+The ROC curve illustrates the performance of a binary classifier system as its discrimination threshold is varied. The curve shows the true positive rate against the false positive rate at various threshold settings. The true-positive rate is also known as recall and the false-positive rate is also known as the fall-out or probability of false alarm. Since we are more inclined to wrongly categorise **not faulty** wine as **faulty** wine than the other way around we are interested in maximizing the **true-positive rate** (recall).
+
+```{r echo = FALSE}
+vd <- cbind(ValidationData, ifelse(ValidationData[,"taste"] == "good", 'ok',
+                                         ifelse(ValidationData[,"quality"] == "average", 'ok', 'not ok')))
+colnames(vd)[14] <- "taste2"
+OOB.votes <- predict(model, vd, type = "prob")
+OOB.pred <- OOB.votes[,3]
+pred.obj <- prediction(OOB.pred, vd[,"taste2"])
+
+ROC.perf <- ROCR::performance(pred.obj, "tpr", "fpr")
+plot(ROC.perf)
+```
+
+#### Recall-Precision curve (for faulty or not faulty)
+
+Precision ($\frac{true.positives}{true.positives + false.positives}$) and Recall ($\frac{true.positives}{true.positives + false.negatives}$) are inversely related, ie. as Precision increases, recall falls and vice-versa. Since we are more inclined to wrongly categorise **not faulty** wine as **faulty** wine than the other way around we are interested in maximizing Recall.
+
+```{r echo = FALSE}
+RP.perf <- performance(pred.obj, "rec", "prec")
+plot(RP.perf)
+```
+
+### Step 6: Test accuracy
+
+Let's finally test the accuracy of the model agains the test dataset that we created at the beginning.
+
+#### Confusion matrix
 
 ```{r echo=FALSE}
+pred <- randomForest:::predict.randomForest(model, TestData)
 
-# varImpPlot(model, sort = T, main = "Variable Importance", n.var = 11)
-pred <- predict(model, newdata = ValidationData)
-confusionMatrix(data = pred, reference = ValidationData[,"taste"])
-# table(pred, ValidationData[,"taste"])
+confusionMatrix(reference = TestData[, "taste"], data = pred)
 
 ```
 
+#### ROC curve (for faulty or not faulty) 
+
+```{r echo = FALSE}
+vd <- cbind(TestData, ifelse(TestData[,"taste"] == "good", 'ok',
+                                         ifelse(TestData[,"quality"] == "average", 'ok', 'not ok')))
+colnames(vd)[14] <- "taste2"
+OOB.votes <- predict(model, vd, type = "prob")
+OOB.pred <- OOB.votes[,3]
+pred.obj <- prediction(OOB.pred, vd[,"taste2"])
+
+ROC.perf <- ROCR::performance(pred.obj, "tpr", "fpr")
+plot(ROC.perf)
+```
+
+#### Recall-Precision curve (for faulty or not faulty)
+
+```{r echo = FALSE}
+RP.perf <- performance(pred.obj, "rec", "prec")
+plot(RP.perf)
+```
 
 
+### Conclusions
 
+The model is strongly **biased towards** the **faulty** classification, which is what it was desinged to do. The model is pretty good at predicting the **good** wines. Although the model might seem to be terrible at dealing with the **average** wines (usually splitting them 50% average, 30% faulty, 20% good) we do not care about upward misclassifications. Furthermore, with such an abundance of average wines losing out on 30% of them is not so terrible.
+
+The accuracy of the model will vary depending on the setup of the Estimation and Test data - sometimes it's good, sometimes it's not.
+
+Finally, by tweaking the input parameters of the random forest algorithm, we were able to **reduce false negatives** on **faulty** wines from about to about **80-90%** down to **10-20%**.
+
+#### And just for fun
+
+Let's also have a look at the importance (usefulness) of each of variables by using the Mean Decrease in Accuracy (mean decrease in accuracy without the variable) and the Mean Decrease in GINI (mean decrease in node impurity without the variable). Since our focus is on prediction, **we are more interested in the Mean Decrease in Accuracy chart**.
+
+```{r echo = FALSE}
+varImpPlot(model, sort = T, main = "Variable Importance", n.var = 11)
+```

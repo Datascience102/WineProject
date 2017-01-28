@@ -9,6 +9,9 @@ output:
     toc_float:
       collapsed: no
       smooth_scroll: yes
+  pdf_document:
+    includes:
+      in_header: ../../AnalyticsStyles/default.sty
 ---
 
 
@@ -99,9 +102,9 @@ It is pretty clear that 6 is the deciding value for the wine quality - effective
 
 Classification | Quality | # Occurences in estimation data | # Occurences in validation data | # Occurences in test data
 :------|:-----------|:----------|:-----------|:----------
-Bad  | 5 or less | 1319 (34%) | 164 (33%) | 157 (32%)
-Normal  | 6 | 1729 (44%) | 231 (47%) | 238 (49%)
-Good  | 7 or greater | 870 (22%) | 95 (19%) | 95 (19%)
+Bad  | 5 or less | 0 (0%) | 0 (0%) | 0 (0%)
+Normal  | 6 | 0 (0%) | 0 (0%) | 0 (0%)
+Good  | 7 or greater | 845 (22%) | 115 (23%) | 100 (20%)
 
 
 ### Step 3: Simple Analysis
@@ -111,75 +114,57 @@ Lets start the analysis with checking some simple statistical information about 
 **Bad wine**
 
 
-```r
-knitr::kable(round(my_summary(EstimationData[EstimationData[,"taste"] == 'bad',1:12]),2))
-```
-
-
-
-|                     |  min| 25 percent| median|   mean| 75 percent|    max|   std|
-|:--------------------|----:|----------:|------:|------:|----------:|------:|-----:|
-|fixed.acidity        | 4.50|       6.40|   6.80|   6.96|       7.50|  11.80|  0.88|
-|volatile.acidity     | 0.10|       0.24|   0.29|   0.31|       0.35|   1.10|  0.11|
-|citric.acid          | 0.00|       0.24|   0.32|   0.34|       0.42|   1.00|  0.14|
-|residual.sugar       | 0.60|       1.70|   6.70|   7.03|      10.85|  23.50|  5.25|
-|chlorides            | 0.01|       0.04|   0.05|   0.05|       0.05|   0.35|  0.03|
-|free.sulfur.dioxide  | 3.00|      21.00|  34.00|  35.68|      49.00| 289.00| 20.70|
-|total.sulfur.dioxide | 9.00|     117.00| 149.00| 148.47|     182.00| 440.00| 46.72|
-|density              | 0.99|       0.99|   1.00|   1.00|       1.00|   1.00|  0.00|
-|pH                   | 2.79|       3.08|   3.16|   3.17|       3.25|   3.79|  0.15|
-|sulphates            | 0.27|       0.41|   0.47|   0.48|       0.52|   0.88|  0.10|
-|alcohol              | 8.00|       9.20|   9.60|   9.86|      10.40|  13.60|  0.88|
-|quality              | 3.00|       5.00|   5.00|   4.88|       5.00|   5.00|  0.36|
+|                     |   min| 25 percent| median|   mean| 75 percent|    max|   std|
+|:--------------------|-----:|----------:|------:|------:|----------:|------:|-----:|
+|fixed.acidity        |  4.20|       6.40|   6.80|   6.97|       7.50|  10.30|  0.87|
+|volatile.acidity     |  0.11|       0.24|   0.29|   0.31|       0.35|   1.10|  0.11|
+|citric.acid          |  0.00|       0.24|   0.32|   0.34|       0.42|   1.00|  0.15|
+|residual.sugar       |  0.60|       1.70|   6.70|   7.05|      11.00|  22.60|  5.24|
+|chlorides            |  0.01|       0.04|   0.05|   0.05|       0.05|   0.35|  0.03|
+|free.sulfur.dioxide  |  2.00|      21.00|  34.00|  35.57|      49.00| 289.00| 20.37|
+|total.sulfur.dioxide | 19.00|     117.00| 151.00| 149.71|     182.00| 440.00| 46.94|
+|density              |  0.99|       0.99|   1.00|   1.00|       1.00|   1.00|  0.00|
+|pH                   |  2.79|       3.08|   3.16|   3.17|       3.24|   3.79|  0.14|
+|sulphates            |  0.25|       0.41|   0.47|   0.48|       0.53|   0.88|  0.10|
+|alcohol              |  8.00|       9.20|   9.60|   9.83|      10.40|  13.40|  0.86|
+|quality              |  3.00|       5.00|   5.00|   4.87|       5.00|   5.00|  0.37|
 
 **Normal wine**
 
 
-```r
-knitr::kable(round(my_summary(EstimationData[EstimationData[,"taste"] == 'normal',1:12]),2))
-```
-
-
-
 |                     |   min| 25 percent| median|   mean| 75 percent|    max|   std|
 |:--------------------|-----:|----------:|------:|------:|----------:|------:|-----:|
-|fixed.acidity        |  3.80|       6.30|   6.80|   6.82|       7.30|  10.70|  0.82|
+|fixed.acidity        |  3.80|       6.30|   6.80|   6.83|       7.30|  14.20|  0.85|
 |volatile.acidity     |  0.08|       0.20|   0.25|   0.26|       0.30|   0.96|  0.09|
-|citric.acid          |  0.00|       0.27|   0.32|   0.34|       0.39|   1.66|  0.12|
-|residual.sugar       |  0.70|       1.70|   5.30|   6.42|       9.90|  65.80|  5.19|
-|chlorides            |  0.02|       0.04|   0.04|   0.05|       0.05|   0.26|  0.02|
-|free.sulfur.dioxide  |  3.00|      24.00|  34.00|  35.82|      46.00| 112.00| 15.78|
-|total.sulfur.dioxide | 18.00|     108.00| 132.00| 137.52|     165.00| 272.00| 41.11|
+|citric.acid          |  0.00|       0.27|   0.32|   0.34|       0.38|   1.66|  0.12|
+|residual.sugar       |  0.70|       1.70|   5.30|   6.43|       9.90|  65.80|  5.16|
+|chlorides            |  0.02|       0.04|   0.04|   0.04|       0.05|   0.20|  0.02|
+|free.sulfur.dioxide  |  3.00|      24.00|  34.00|  35.82|      46.00| 108.00| 15.73|
+|total.sulfur.dioxide | 18.00|     108.00| 132.00| 137.15|     164.00| 294.00| 41.41|
 |density              |  0.99|       0.99|   0.99|   0.99|       1.00|   1.04|  0.00|
-|pH                   |  2.74|       3.09|   3.19|   3.19|       3.28|   3.80|  0.15|
+|pH                   |  2.72|       3.08|   3.18|   3.19|       3.28|   3.81|  0.15|
 |sulphates            |  0.23|       0.41|   0.48|   0.49|       0.55|   1.06|  0.11|
-|alcohol              |  8.50|       9.60|  10.50|  10.59|      11.40|  13.80|  1.15|
+|alcohol              |  8.50|       9.60|  10.45|  10.58|      11.40|  14.00|  1.15|
 |quality              |  6.00|       6.00|   6.00|   6.00|       6.00|   6.00|  0.00|
 
 
 **Good wine**
 
 
-```r
-knitr::kable(round(my_summary(EstimationData[EstimationData[,"taste"] == 'good',1:12]),2))
-```
-
-
-
 |                     |   min| 25 percent| median|   mean| 75 percent|    max|   std|
 |:--------------------|-----:|----------:|------:|------:|----------:|------:|-----:|
-|fixed.acidity        |  3.90|       6.20|   6.70|   6.72|       7.20|   9.20|  0.78|
-|volatile.acidity     |  0.08|       0.19|   0.25|   0.26|       0.32|   0.66|  0.09|
+|fixed.acidity        |  3.90|       6.20|   6.70|   6.72|       7.20|   9.20|  0.77|
+|volatile.acidity     |  0.08|       0.19|   0.25|   0.26|       0.32|   0.76|  0.09|
 |citric.acid          |  0.01|       0.28|   0.32|   0.33|       0.36|   0.74|  0.08|
-|residual.sugar       |  0.90|       1.80|   3.75|   5.21|       7.40|  19.25|  4.29|
+|residual.sugar       |  0.80|       1.70|   3.60|   5.12|       7.30|  19.25|  4.25|
 |chlorides            |  0.01|       0.03|   0.04|   0.04|       0.04|   0.14|  0.01|
-|free.sulfur.dioxide  |  5.00|      25.00|  33.00|  34.60|      42.00| 105.00| 13.92|
-|total.sulfur.dioxide | 34.00|     102.00| 123.00| 125.67|     146.00| 229.00| 33.25|
+|free.sulfur.dioxide  |  5.00|      25.00|  33.00|  34.46|      41.00| 108.00| 13.67|
+|total.sulfur.dioxide | 34.00|     100.00| 122.00| 124.73|     145.00| 229.00| 32.67|
 |density              |  0.99|       0.99|   0.99|   0.99|       0.99|   1.00|  0.00|
-|pH                   |  2.84|       3.10|   3.21|   3.22|       3.33|   3.82|  0.16|
-|sulphates            |  0.22|       0.40|   0.48|   0.50|       0.58|   0.99|  0.13|
-|alcohol              |  8.50|      10.70|  11.50|  11.42|      12.40|  14.20|  1.23|
-|quality              |  7.00|       7.00|   7.00|   7.19|       7.00|   9.00|  0.41|
+|pH                   |  2.90|       3.10|   3.20|   3.21|       3.32|   3.82|  0.16|
+|sulphates            |  0.25|       0.40|   0.48|   0.50|       0.58|   1.08|  0.13|
+|alcohol              |  8.50|      10.70|  11.50|  11.44|      12.40|  14.20|  1.25|
+|quality              |  7.00|       7.00|   7.00|   7.18|       7.00|   9.00|  0.39|
 
 
 Now let's do some simple box plots based on the above data as they may help usassess the discriminatory power of the independent variables.
@@ -194,7 +179,7 @@ Now let's do some simple box plots based on the above data as they may help usas
 ![plot of chunk unnamed-chunk-10](figure/unnamed-chunk-10-1.png)
 
 
-*Good wine**
+**Good wine**
 
 ![plot of chunk unnamed-chunk-11](figure/unnamed-chunk-11-1.png)
 
@@ -204,46 +189,59 @@ Now let's do some simple box plots based on the above data as they may help usas
 It is time now to run a the classification algorithm on the data set. We have chosen to use the random forest tree algorithm for this.
 
 
-```
-##        bad good normal class.error
-## bad    974   15    330   0.2615618
-## good    24  557    289   0.3597701
-## normal 264  159   1306   0.2446501
-```
 
-![plot of chunk unnamed-chunk-12](figure/unnamed-chunk-12-1.png)
+There are a few basic parameters that can be set when we run the randomForest algorithm. So let's start with looking at the error rates vs the number of tress in the random forest.
+
+![plot of chunk unnamed-chunk-13](figure/unnamed-chunk-13-1.png)
+
+
+Lets also look at some of the observations and see how the model predicted the quality of the wine.
+
+
+| average| good| poor|predicted.value |actual.value |
+|-------:|----:|----:|:---------------|:------------|
+|    0.68| 0.23| 0.09|average         |poor         |
+|    0.41| 0.32| 0.27|average         |good         |
+|    0.53| 0.02| 0.46|average         |average      |
+|    0.54| 0.05| 0.41|average         |average      |
+|    0.05| 0.02| 0.93|poor            |poor         |
+|    0.17| 0.01| 0.82|poor            |average      |
+|    0.62| 0.20| 0.18|average         |average      |
+|    0.44| 0.00| 0.56|poor            |poor         |
+|    0.65| 0.14| 0.21|average         |average      |
+|    0.44| 0.31| 0.25|average         |good         |
 
 
 ```
 ## Confusion Matrix and Statistics
 ## 
 ##           Reference
-## Prediction bad good normal
-##     bad    119    1     27
-##     good     3   69     24
-##     normal  42   25    180
+## Prediction average good poor
+##    average     154   38   48
+##    good         17   72    2
+##    poor         42    5  112
 ## 
 ## Overall Statistics
 ##                                           
-##                Accuracy : 0.751           
-##                  95% CI : (0.7103, 0.7887)
-##     No Information Rate : 0.4714          
-##     P-Value [Acc > NIR] : <2e-16          
+##                Accuracy : 0.6898          
+##                  95% CI : (0.6468, 0.7305)
+##     No Information Rate : 0.4347          
+##     P-Value [Acc > NIR] : < 2e-16         
 ##                                           
-##                   Kappa : 0.601           
-##  Mcnemar's Test P-Value : 0.2326          
+##                   Kappa : 0.5124          
+##  Mcnemar's Test P-Value : 0.02126         
 ## 
 ## Statistics by Class:
 ## 
-##                      Class: bad Class: good Class: normal
-## Sensitivity              0.7256      0.7263        0.7792
-## Specificity              0.9141      0.9316        0.7413
-## Pos Pred Value           0.8095      0.7187        0.7287
-## Neg Pred Value           0.8688      0.9340        0.7901
-## Prevalence               0.3347      0.1939        0.4714
-## Detection Rate           0.2429      0.1408        0.3673
-## Detection Prevalence     0.3000      0.1959        0.5041
-## Balanced Accuracy        0.8199      0.8290        0.7603
+##                      Class: average Class: good Class: poor
+## Sensitivity                  0.7230      0.6261      0.6914
+## Specificity                  0.6895      0.9493      0.8567
+## Pos Pred Value               0.6417      0.7912      0.7044
+## Neg Pred Value               0.7640      0.8922      0.8489
+## Prevalence                   0.4347      0.2347      0.3306
+## Detection Rate               0.3143      0.1469      0.2286
+## Detection Prevalence         0.4898      0.1857      0.3245
+## Balanced Accuracy            0.7063      0.7877      0.7740
 ```
 
 
