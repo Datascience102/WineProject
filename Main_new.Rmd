@@ -119,7 +119,7 @@ barplot(table(ProjectData[,"quality"]), main = "Quality")
 
 ## The analysis process
 
-We chose to design our analysis process based on the 6-step process provided in class. However, instead of using **logistic regression** and **classification and regression trees (CART)** we decided that we would use an implementation of Breiman and Cutler's **Random Forests for Classification and Regression**. As a result we did not have to restrict ourselves to a binary dependent variable and changed **step 2**.
+We chose to design our analysis process based on the 6-step process provided in class. However, instead of using logistic regression and classification and regression trees (CART) we decided that we would use an implementation of Breiman and Cutler's **Random Forests for Classification and Regression**. As a result we did not have to restrict ourselves to a binary dependent variable and changed **step 2**.
  
 
 ### Classification in about 6 steps
@@ -392,7 +392,7 @@ plot(RP.perf)
 ```
 
 
-### Conclusions
+## Conclusions
 
 The model is strongly **biased towards** the **faulty classification**, which is what it was desinged to do. The model is pretty good at predicting the good wines. Although the model might seem to be terrible at dealing with the average wines (usually splitting them 45% average, 35% faulty, 20% good) we are not concerned with upward misclassifications. Furthermore, with such an abundance of average wines, losing out on 35% of them is not so terrible.
 
