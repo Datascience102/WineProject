@@ -17,11 +17,6 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-
-#TODO: randomForest on quality not taste
-#TODO: supervised random forest where upward mistakes are free and downward mistakes are proportional to the 2nd power of the distance between the two scores  
-
-
 #Setup document constants
 
 # Setup key filenames and directory paths
